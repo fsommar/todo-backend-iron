@@ -1,0 +1,15 @@
+[package]
+name = "todo-iron"
+version = "0.0.1"
+authors = ["Fredrik Sommar <fsommar@kth.se>"]
+
+[dependencies]
+iron = "*"
+router = "*"
+bodyparser = "*"
+rustc-serialize = "*"
+persistent = "*"
+unicase = "*"
+
+[dependencies.urlencoded]
+git = "https://github.com/iron/urlencoded"
