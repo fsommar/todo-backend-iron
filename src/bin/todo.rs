@@ -1,6 +1,7 @@
 extern crate todo_iron as todo;
 extern crate iron;
 extern crate router;
+extern crate uuid;
 extern crate bodyparser;
 extern crate persistent;
 extern crate rustc_serialize;
@@ -16,6 +17,8 @@ use iron::typemap::Key;
 
 use router::Router;
 
+use uuid::Uuid;
+
 use unicase::UniCase;
 
 use rustc_serialize::{json, Encodable};
@@ -23,6 +26,7 @@ use rustc_serialize::{json, Encodable};
 fn main() {
     let mut router = Router::new();
     router.get("/todos", get_todos);
+    router.get("/todos/:id", get_todo);
     router.post("/todos", post_todo);
     router.delete("/todos", delete_todos);
     router.options("/todos", |_: &mut Request| Ok(Response::with(status::Ok)));
@@ -37,6 +41,16 @@ fn main() {
 struct TodoList;
 
 impl Key for TodoList { type Value = Vec<Todo>; }
+
+fn get_todo(req: &mut Request) -> IronResult<Response> {
+    let mutex = req.get::<Write<TodoList>>().ok().unwrap();
+    let list = mutex.lock().unwrap();
+
+    let id = req.extensions.get::<Router>().unwrap().find("id").unwrap();
+    let todo = list.iter().find(|&x| x.id == id).unwrap();
+
+    Ok(Response::with((status::Ok, Json(&todo))))
+}
 
 fn get_todos(req: &mut Request) -> IronResult<Response> {
     let mutex = req.get::<Write<TodoList>>().ok().unwrap();
@@ -57,15 +71,17 @@ fn post_todo(req: &mut Request) -> IronResult<Response> {
 
     let post_todo = req.get::<bodyparser::Struct<PostTodo>>().unwrap().unwrap();
 
+    let id = Uuid::new_v4().to_string();
+
     let todo = Todo {
+        id: id.clone(),
         title: post_todo.title,
         order: post_todo.order,
         completed: false,
-        url: "1".to_string(),
+        url: format!("todos/{}", id),
     };
 
     list.push(todo.clone());
-
 
     Ok(Response::with((status::Ok, Json(&todo))))
 }
@@ -76,7 +92,7 @@ fn delete_todos(req: &mut Request) -> IronResult<Response> {
 
     list.clear();
 
-    Ok(Response::with((status::Ok, "")))
+    Ok(Response::with(status::Ok))
 }
 
 /// A simple wrapper struct for marking a struct as a JSON response.

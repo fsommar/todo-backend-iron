@@ -10,6 +10,7 @@ bodyparser = "*"
 rustc-serialize = "*"
 persistent = "*"
 unicase = "*"
+uuid = "*"
 
 [dependencies.urlencoded]
 git = "https://github.com/iron/urlencoded"
