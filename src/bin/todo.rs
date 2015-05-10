@@ -82,7 +82,7 @@ fn post_todo(req: &mut Request) -> IronResult<Response> {
         title: post_todo.title,
         order: post_todo.order,
         completed: false,
-        url: format!("/todos/{}", id),
+        url: format!("{}/todos/{}", req.local_addr, id),
     };
 
     list.push(todo.clone());
