@@ -29,7 +29,11 @@ fn main() {
     router.get("/todos/:id", get_todo);
     router.post("/todos", post_todo);
     router.delete("/todos", delete_todos);
+    router.delete("/todos/:id", delete_todo);
+    router.patch("/todos/:id", patch_todo);
+
     router.options("/todos", |_: &mut Request| Ok(Response::with(status::Ok)));
+    router.options("/todos/:id", |_: &mut Request| Ok(Response::with(status::Ok)));
 
     let mut chain = Chain::new(router);
     chain.link_after(CorsFilter);
@@ -93,6 +97,48 @@ fn delete_todos(req: &mut Request) -> IronResult<Response> {
     list.clear();
 
     Ok(Response::with(status::Ok))
+}
+
+fn delete_todo(req: &mut Request) -> IronResult<Response> {
+    let mutex = req.get::<Write<TodoList>>().ok().unwrap();
+    let mut list = mutex.lock().unwrap();
+
+    let id = req.extensions.get::<Router>().unwrap().find("id").unwrap();
+    let pos = list.iter().position(|x| x.id == id).unwrap();
+    list.swap_remove(pos);
+
+    Ok(Response::with(status::Ok))
+}
+
+fn patch_todo(req: &mut Request) -> IronResult<Response> {
+    let mutex = req.get::<Write<TodoList>>().ok().unwrap();
+    let mut list = mutex.lock().unwrap();
+
+    let todo = {
+        let id = req.extensions.get::<Router>().unwrap().find("id").unwrap();
+        list.iter_mut().find(|x| x.id == id).unwrap()
+    };
+
+    #[derive(RustcDecodable, Clone)]
+    struct PatchTodo {
+        title: Option<String>,
+        completed: Option<bool>,
+        order: Option<i32>,
+    }
+
+    let patch_todo = req.get::<bodyparser::Struct<PatchTodo>>().unwrap().unwrap();
+
+    if let Some(title) = patch_todo.title {
+        todo.title = title;
+    }
+    if let Some(completed) = patch_todo.completed {
+        todo.completed = completed;
+    }
+    if let Some(order) = patch_todo.order {
+        todo.order = Some(order);
+    }
+
+    Ok(Response::with((status::Ok, Json(todo))))
 }
 
 /// A simple wrapper struct for marking a struct as a JSON response.
