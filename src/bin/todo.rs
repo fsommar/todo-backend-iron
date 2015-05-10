@@ -28,7 +28,7 @@ fn main() {
     router.options("/todos", |_: &mut Request| Ok(Response::with(status::Ok)));
 
     let mut chain = Chain::new(router);
-    chain.link_before(CorsFilter);
+    chain.link_after(CorsFilter);
     chain.link(Write::<TodoList>::both(vec![]));
 
     Iron::new(chain).http("0.0.0.0:3000").unwrap();
@@ -94,14 +94,14 @@ impl<'a, T: Encodable> iron::modifier::Modifier<Response> for Json<'a, T> {
 
 struct CorsFilter;
 
-impl iron::BeforeMiddleware for CorsFilter {
-    fn before(&self, req: &mut Request) -> IronResult<()> {
-        req.headers.set(headers::AccessControlAllowOrigin::Any);
-        req.headers.set(headers::AccessControlAllowHeaders(
+impl iron::AfterMiddleware for CorsFilter {
+    fn after(&self, _: &mut Request, mut res: Response) -> IronResult<Response> {
+        res.headers.set(headers::AccessControlAllowOrigin::Any);
+        res.headers.set(headers::AccessControlAllowHeaders(
                 vec![UniCase("accept".to_string()),
                 UniCase("content-type".to_string())]));
-        req.headers.set(headers::AccessControlAllowMethods(
+        res.headers.set(headers::AccessControlAllowMethods(
                 vec![Get,Head,Post,Delete,Options,Put,Patch]));
-        Ok(())
+        Ok(res)
     }
 }
