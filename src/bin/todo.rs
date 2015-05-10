@@ -25,6 +25,7 @@ fn main() {
     router.get("/todos", get_todos);
     router.post("/todos", post_todo);
     router.delete("/todos", delete_todos);
+    router.options("/todos", |_: &mut Request| Ok(Response::with(status::Ok)));
 
     let mut chain = Chain::new(router);
     chain.link_before(CorsFilter);
