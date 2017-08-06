@@ -23,10 +23,23 @@ use unicase::UniCase;
 
 use rustc_serialize::{json, Encodable};
 
+/*
+fn reg<T: Encodable, H: TodoRepository<T>>(router: &mut Router, handler: H) {
+    fn test<X: iron::Handler>(router: &mut Router, x: X) {
+        // println!("test {:?}", handler);
+        router.get("/todos/:id", x);
+    }
+    test(router, handler);
+}
+*/
+
 fn main() {
     let mut router = Router::new();
-    router.get("/todos", get_todos);
-    router.get("/todos/:id", get_todo);
+    //router.get("/todos", get_todos);
+    //router.get::<TodoRepository<&Todo>, &str>("/todos/:id", get_todo);
+    //reg(&mut router, get_todo);
+    router.get("/todos/:id", VecRepository(Box::new(get_todo)));
+    router.get("/todos", VecRepository(Box::new(get_todos)));
     router.post("/todos", post_todo);
     router.delete("/todos", delete_todos);
     router.delete("/todos/:id", delete_todo);
@@ -46,21 +59,24 @@ struct TodoList;
 
 impl Key for TodoList { type Value = Vec<Todo>; }
 
-fn get_todo(req: &mut Request) -> IronResult<Response> {
-    let mutex = req.get::<Write<TodoList>>().ok().unwrap();
-    let list = mutex.lock().unwrap();
+struct VecRepository<T>(Box<(Fn(&Vec<Todo>, &mut Request) -> Result<T, IronError> + Send + Sync)>);
 
-    let id = req.extensions.get::<Router>().unwrap().find("id").unwrap();
-    let todo = list.iter().find(|&x| x.id == id).unwrap();
-
-    Ok(Response::with((status::Ok, Json(&todo))))
+impl<T: Encodable + Send + Sync + std::any::Any> iron::Handler for VecRepository<T> {
+    fn handle(&self, req: &mut Request) -> IronResult<Response> {
+        let mutex = req.get::<Write<TodoList>>().ok().unwrap();
+        let list = mutex.lock().unwrap();
+        let VecRepository(ref f) = *self;
+        f(&*list, req).map(|v| Response::with((status::Ok, Json(&v))))
+    }
 }
 
-fn get_todos(req: &mut Request) -> IronResult<Response> {
-    let mutex = req.get::<Write<TodoList>>().ok().unwrap();
-    let list = mutex.lock().unwrap();
+fn get_todo(list: &Vec<Todo>, req: &mut Request) -> Result<Todo, IronError> {
+    let id = req.extensions.get::<Router>().unwrap().find("id").unwrap();
+    Ok(list.iter().find(|&x| x.id == id).unwrap().clone())
+}
 
-    Ok(Response::with((status::Ok, Json(&*list))))
+fn get_todos(list: &Vec<Todo>, req: &mut Request) -> Result<Vec<Todo>, IronError> {
+    Ok(list.clone())
 }
 
 fn post_todo(req: &mut Request) -> IronResult<Response> {
@@ -138,13 +154,13 @@ fn patch_todo(req: &mut Request) -> IronResult<Response> {
         todo.order = Some(order);
     }
 
-    Ok(Response::with((status::Ok, Json(todo))))
+    Ok(Response::with((status::Ok, Json(todo.clone()))))
 }
 
 /// A simple wrapper struct for marking a struct as a JSON response.
-struct Json<'a, T: Encodable + 'a>(&'a T);
+struct Json<T: Encodable>(T);
 
-impl<'a, T: Encodable> iron::modifier::Modifier<Response> for Json<'a, T> {
+impl<T: Encodable> iron::modifier::Modifier<Response> for Json<T> {
     #[inline]
     fn modify(self, res: &mut Response) {
         let Json(x) = self;
